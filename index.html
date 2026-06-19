@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Alunos de Artes Marciais</title>
+<style>
+body{font-family:Arial,sans-serif;background:linear-gradient(135deg,#0f0f0f,#1c1c1c);color:#fff;margin:0;padding:20px}
+.container{max-width:1000px;margin:auto}
+.hidden{display:none}
+.card{background:#222;padding:15px;margin:10px 0;border-radius:12px;display:flex;justify-content:space-between;gap:15px}
+.card-info{flex:1}
+.foto-aluno{width:110px;height:110px;border-radius:10px;object-fit:cover;background:#444}
+input,textarea{padding:10px;margin:5px;border:none;border-radius:8px;width:calc(100% - 20px)}
+button{padding:10px 14px;margin:5px;border:none;border-radius:8px;cursor:pointer;background:#4CAF50;color:white;font-weight:bold}
+.topbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center}
+h1,h2,h3{text-align:center}
+.aviso{background:#222;padding:12px;border-radius:10px;margin:10px 0}
+</style>
+</head>
+<body>
+
+<div id="login">
+<h1>🔐 Login</h1>
+<center>
+<input id="loginNickname" placeholder="Nickname"><br>
+<input id="loginSenha" type="password" placeholder="Senha"><br>
+<button onclick="login()">Entrar</button>
+</center>
+</div>
+
+<div id="app" class="hidden container">
+<div class="topbar">
+<h2>🥋 Sistema de Alunos de Artes Marciais</h2>
+<div>
+<button onclick="mostrarTela('alunos')">👥 Alunos</button>
+<button onclick="mostrarTela('ranking')">🏆 Ranking</button>
+<button onclick="mostrarTela('avisos')">📢 Avisos</button>
+<button onclick="mostrarTela('conteudos')">📚 Conteúdos</button>
+<button onclick="logout()">Sair</button>
+</div>
+</div>
+
+<div id="adminPanel" class="hidden">
+<h3>Adicionar Aluno</h3>
+<input id="nome" placeholder="Nome completo">
+<input id="nickname" placeholder="Nickname">
+<input id="nascimento" type="date">
+<input id="faixa" placeholder="Faixa">
+<input id="tipo" placeholder="Tipo">
+<input id="senhaAluno" placeholder="Senha">
+<input id="fotoAluno" type="file" accept="image/*">
+<button onclick="addAluno()">Adicionar</button>
+<hr>
+
+<h3>Adicionar Aviso</h3>
+<input id="tituloAviso" placeholder="Título">
+<textarea id="textoAviso" placeholder="Texto livre"></textarea>
+<button onclick="addAviso()">Publicar Aviso</button>
+<hr>
+<h3>Adicionar Conteúdo</h3>
+
+<input id="conteudoTitulo" placeholder="Título">
+
+<input id="conteudoFaixa" placeholder="Faixa (branca, amarela, azul...)">
+
+<input id="conteudoPdf" placeholder="Link PDF">
+
+<input id="conteudoFoto" placeholder="Link Foto">
+
+<textarea id="conteudoDescricao" placeholder="Descrição"></textarea>
+
+<button onclick="addConteudo()">Adicionar Conteúdo</button>
+
+<button onclick="salvarTeste()">TESTE FIREBASE</button>
+
+<hr>
+</div>
+
+<div id="telaAlunos"><h3>Alunos</h3><div id="lista"></div></div>
+<div id="telaRanking" class="hidden"><h3>🏆 Ranking</h3><div id="ranking"></div></div>
+<div id="telaAvisos" class="hidden"><h3>📢 Quadro de Avisos</h3><div id="avisos"></div></div>
+<div id="telaConteudos" class="hidden"><h3>📚 Conteúdos por Faixa</h3><div id="conteudos"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  onSnapshot,
+  query,
+  where,
+  doc,
+  updateDoc,
+  deleteDoc
+} from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCnoMdgr0uErqMCPBfVp9uUGLSHvOQYFuU",
+  authDomain: "taiyou-ha-ita.firebaseapp.com",
+  projectId: "taiyou-ha-ita",
+  storageBucket: "taiyou-ha-ita.firebasestorage.app",
+  messagingSenderId: "547460780131",
+  appId: "1:547460780131:web:c29ebb5ebfafa487f32856",
+  measurementId: "G-SL0N24N5T4"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+window.query = query;
+window.where = where;
+window.doc = doc;
+window.updateDoc = updateDoc;
+window.deleteDoc = deleteDoc;
+window.db = db;
+window.collection = collection;
+window.addDoc = addDoc;
+window.getDocs = getDocs;
+window.onSnapshot = onSnapshot;
+window.salvarTeste = async function(){
+
+await addDoc(
+collection(db,"teste"),
+{
+nome:"funcionou",
+data:Date.now()
+}
+);
+
+alert("SALVO NO FIREBASE");
+
+}
+</script>
+
+<script>
+const ADMIN_NICKNAME="admin";
+const ADMIN_SENHA="keiko";
+let modo="";
+let alunoLogado=null;
+let alunos=[];
+let avisos=[];
+let conteudos=[];
+
+function salvar(){
+localStorage.setItem("alunos",JSON.stringify(alunos));
+localStorage.setItem("avisos",JSON.stringify(avisos));
+localStorage.setItem("conteudos",JSON.stringify(conteudos));
+}
+
+
+function login(){
+if(alunos.length===0){
+alert("Aguarde alguns segundos e tente novamente.");
+return;
+}
+let n=loginNickname.value.trim();
+let s=loginSenha.value;
+if(n===ADMIN_NICKNAME&&s===ADMIN_SENHA){modo="admin";abrirSistema();return;}
+let aluno=alunos.find(a=>a.nickname===n&&a.senha===s);
+if(aluno){modo="aluno";alunoLogado=aluno;abrirSistema();return;
+}
+alert("Login inválido");
+}
+
+function abrirSistema(){
+document.getElementById("login").classList.add("hidden");
+document.getElementById("app").classList.remove("hidden");
+document.getElementById("adminPanel").classList.toggle("hidden",modo!=="admin");
+
+carregarAvisos();
+carregarConteudos();
+carregarAlunos();
+
+render();
+}
+
+function logout(){location.reload();}
+
+function mostrarTela(t){
+telaAlunos.classList.add("hidden");
+telaRanking.classList.add("hidden");
+telaAvisos.classList.add("hidden");
+telaConteudos.classList.add("hidden");
+if(t==="alunos")telaAlunos.classList.remove("hidden");
+if(t==="ranking")telaRanking.classList.remove("hidden");
+if(t==="avisos")telaAvisos.classList.remove("hidden");
+if(t==="conteudos")telaConteudos.classList.remove("hidden");
+}
+
+function nomeEl(id){return document.getElementById(id).value.trim();}
+
+async function addAluno(){
+
+let nome=nomeEl("nome");
+let nickname=nomeEl("nickname");
+let nascimento=nomeEl("nascimento");
+let faixa=nomeEl("faixa");
+let tipo=nomeEl("tipo");
+let senha=nomeEl("senhaAluno");
+
+if(!nome||!nickname||!senha){
+alert("Preencha os campos obrigatórios");
+return;
+}
+
+const foto=document.getElementById("fotoAluno").files[0];
+
+function salvarAluno(fotoBase64=""){
+
+addDoc(
+collection(db,"alunos"),
+{
+nome,
+nickname,
+nascimento,
+faixa,
+tipo,
+senha,
+foto:fotoBase64
+}
+);
+
+alert("Aluno cadastrado!");
+
+}
+
+if(foto){
+
+let r=new FileReader();
+
+r.onload=e=>{
+
+salvarAluno(e.target.result);
+
+};
+
+r.readAsDataURL(foto);
+
+}else{
+
+salvarAluno();
+
+}
+
+}
+
+async function addAviso(){
+
+let titulo=nomeEl("tituloAviso");
+let texto=nomeEl("textoAviso");
+
+if(!titulo && !texto) return;
+
+await addDoc(
+collection(db,"avisos"),
+{
+titulo: titulo,
+texto: texto,
+data: Date.now()
+}
+);
+
+tituloAviso.value="";
+textoAviso.value="";
+
+alert("Aviso publicado!");
+
+}
+
+async function addConteudo(){
+
+let titulo=nomeEl("conteudoTitulo");
+let faixa=nomeEl("conteudoFaixa");
+let pdf=nomeEl("conteudoPdf");
+let foto=nomeEl("conteudoFoto");
+let descricao=nomeEl("conteudoDescricao");
+
+if(!titulo) return;
+
+await addDoc(
+collection(db,"conteudos"),
+{
+titulo,
+faixa,
+pdf,
+foto,
+descricao,
+data:Date.now()
+}
+);
+
+conteudoTitulo.value="";
+conteudoFaixa.value="";
+conteudoPdf.value="";
+conteudoFoto.value="";
+conteudoDescricao.value="";
+
+alert("Conteúdo publicado!");
+
+}
+
+async function excluirAviso(i){
+
+if(!confirm("Excluir aviso?")) return;
+
+await deleteDoc(
+doc(db,"avisos",avisos[i].id)
+);
+
+}
+
+async function excluirConteudo(i){
+
+if(!confirm("Excluir conteúdo?")) return;
+
+await deleteDoc(
+doc(db,"conteudos",conteudos[i].id)
+);
+
+}
+
+function faixaPeso(f){
+
+f=(f||"").toLowerCase();
+
+if(f.includes("branca")) return 1;
+if(f.includes("amarela")) return 2;
+if(f.includes("azul")) return 3;
+if(f.includes("laranja")) return 4;
+if(f.includes("verde")) return 5;
+if(f.includes("roxa")) return 6;
+if(f.includes("marrom")) return 7;
+if(f.includes("preta")) return 8;
+if(f.includes("vermelha")) return 9;
+
+return 0;
+
+}
+
+function idade(data){
+if(!data)return 0;
+let h=new Date(), n=new Date(data);
+let i=h.getFullYear()-n.getFullYear();
+let m=h.getMonth()-n.getMonth();
+if(m<0||(m===0&&h.getDate()<n.getDate()))i--;
+return i;
+}
+
+function carregarAvisos(){
+
+onSnapshot(
+collection(db,"avisos"),
+(snapshot)=>{
+
+avisos=[];
+
+snapshot.forEach((doc)=>{
+avisos.push({
+id: doc.id,
+...doc.data()
+});
+});
+
+avisos.sort((a,b)=>b.data-a.data);
+
+render();
+
+}
+);
+
+}
+
+function carregarConteudos(){
+
+onSnapshot(
+collection(db,"conteudos"),
+(snapshot)=>{
+
+conteudos=[];
+
+snapshot.forEach((doc)=>{
+conteudos.push({
+id: doc.id,
+...doc.data()
+});
+});
+
+conteudos.sort((a,b)=>b.data-a.data);
+
+render();
+
+}
+);
+
+}
+
+function carregarAlunos(){
+
+console.log("carregarAlunos executou");
+
+onSnapshot(
+collection(db,"alunos"),
+(snapshot)=>{
+
+console.log("snapshot chegou");
+console.log("quantidade:", snapshot.size);
+
+alunos=[];
+
+snapshot.forEach((doc)=>{
+
+console.log("aluno encontrado:", doc.data());
+
+alunos.push({
+id: doc.id,
+...doc.data()
+});
+
+});
+
+console.log("alunos carregados:", alunos);
+
+render();
+
+},
+(error)=>{
+
+console.error("ERRO FIREBASE:", error);
+
+}
+);
+
+}
+
+async function excluirAluno(id){
+
+if(!confirm("Excluir aluno?")) return;
+
+await deleteDoc(
+doc(db,"alunos",id)
+);
+
+}
+
+const FAIXAS = [
+"Kyu 7° Branca",
+"Kyu 6° Amarela",
+"Kyu 5° Azul",
+"Kyu 4° Laranja",
+"Kyu 3° Verde",
+"Kyu 2° Roxa",
+"Kyu 1° Marrom",
+"Kyu 0° Preta",
+"Kyu 0° Vermelha"
+];
+
+async function graduarAluno(id){
+
+let aluno = alunos.find(a=>a.id===id);
+alert(aluno.faixa);
+
+if(!aluno) return;
+
+let pos = FAIXAS.indexOf(aluno.faixa);
+
+if(pos >= FAIXAS.length-1){
+alert("Aluno já está na última faixa");
+return;
+}
+
+await updateDoc(
+doc(db,"alunos",id),
+{
+faixa: FAIXAS[pos+1]
+}
+);
+
+}
+
+async function regredirAluno(id){
+
+let aluno = alunos.find(a=>a.id===id);
+
+if(!aluno) return;
+
+let pos = FAIXAS.indexOf(aluno.faixa);
+
+if(pos <= 0){
+alert("Aluno já está na primeira faixa");
+return;
+}
+
+await updateDoc(
+doc(db,"alunos",id),
+{
+faixa: FAIXAS[pos-1]
+}
+);
+
+}
+
+async function editarAluno(id){
+
+let aluno = alunos.find(a=>a.id===id);
+
+if(!aluno) return;
+
+let nome = prompt("Nome:", aluno.nome);
+if(nome===null) return;
+
+let faixa = prompt("Faixa:", aluno.faixa);
+if(faixa===null) return;
+
+let tipo = prompt("Tipo:", aluno.tipo);
+if(tipo===null) return;
+
+let senha = prompt("Senha:", aluno.senha);
+if(senha===null) return;
+
+let nascimento = prompt("Nascimento:", aluno.nascimento);
+if(nascimento===null) return;
+
+let foto = prompt("Foto (link/base64):", aluno.foto || "");
+if(foto===null) return;
+
+await updateDoc(
+doc(db,"alunos",id),
+{
+nome,
+faixa,
+tipo,
+senha,
+nascimento,
+foto
+}
+);
+
+}
+
+function render(){
+lista.innerHTML="";
+
+alunos.forEach((aluno,i)=>{
+lista.innerHTML+=`
+<div class="card">
+<div class="card-info">
+<b>${aluno.nome}</b><br><br>
+Nickname: ${aluno.nickname}<br>
+Idade: ${idade(aluno.nascimento)} anos<br>
+Faixa: ${aluno.faixa||"-"}<br>
+Tipo: ${aluno.tipo||"-"}<br>
+${modo==="admin"?`
+
+<button onclick="graduarAluno('${aluno.id}')">⬆️ Graduar</button>
+
+<button onclick="regredirAluno('${aluno.id}')">⬇️ Regredir</button>
+
+<button onclick="editarAluno('${aluno.id}')">✏️ Editar</button>
+
+<button onclick="excluirAluno('${aluno.id}')">🗑️ Excluir</button>
+
+`:""}
+</div>
+${aluno.foto?`<img class="foto-aluno" src="${aluno.foto}">`:""}
+</div>`;
+});
+
+let ranking=[...alunos].sort((a,b)=>{
+let f=faixaPeso(b.faixa)-faixaPeso(a.faixa);
+if(f!==0)return f;
+return idade(b.nascimento)-idade(a.nascimento);
+});
+
+document.getElementById("ranking").innerHTML=ranking.map((a,p)=>`
+<div class="card">
+<div><b>#${p+1} ${a.nome}</b><br>${a.faixa}<br>${idade(a.nascimento)} anos</div>
+</div>`).join("");
+
+document.getElementById("avisos").innerHTML=avisos.map((a,i)=>`
+<div class="aviso">
+<h4>${a.titulo||"Aviso"}</h4>
+<small>${a.data}</small>
+<p>${a.texto}</p>
+${modo==="admin"?`<button onclick="excluirAviso(${i})">Excluir</button>`:""}
+</div>`).join("");
+
+let conteudosVisiveis = conteudos;
+
+if(modo==="aluno"){
+
+conteudosVisiveis = conteudos.filter(c =>
+faixaPeso(c.faixa) <= faixaPeso(alunoLogado.faixa)
+);
+
+}
+
+document.getElementById("conteudos").innerHTML=
+conteudosVisiveis.map((c,i)=>`
+<div class="card">
+<div class="card-info">
+
+<h3>${c.titulo}</h3>
+
+<p><b>Faixa:</b> ${c.faixa}</p>
+
+<p>${c.descricao}</p>
+
+${c.pdf ? `
+<a href="${c.pdf}" target="_blank">
+<button>📄 Abrir PDF</button>
+</a>
+` : ""}
+
+${c.foto ? `
+<br><br>
+<img src="${c.foto}"
+style="max-width:250px;border-radius:10px">
+` : ""}
+
+${modo==="admin" ? `
+<br><br>
+<button onclick="excluirConteudo(${i})">
+🗑️ Excluir Conteúdo
+</button>
+` : ""}
+
+</div>
+</div>
+`).join("");
+}
+</script>
+</body>
+</html>
